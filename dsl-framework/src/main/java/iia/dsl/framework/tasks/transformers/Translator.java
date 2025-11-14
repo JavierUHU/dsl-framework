@@ -1,23 +1,16 @@
 package iia.dsl.framework.tasks.transformers;
 
-import java.io.StringReader;
-
-import javax.xml.transform.Transformer;
-import javax.xml.transform.TransformerFactory;
-import javax.xml.transform.dom.DOMResult;
-import javax.xml.transform.dom.DOMSource;
-import javax.xml.transform.stream.StreamSource;
-
-import org.w3c.dom.Document;
-
-import iia.dsl.framework.Slot;
-import iia.dsl.framework.Task;
-import iia.dsl.framework.TaskType;
+import iia.dsl.framework.core.Message;
+import iia.dsl.framework.core.Slot;
+import iia.dsl.framework.tasks.Task;
+import iia.dsl.framework.tasks.TaskType;
+import iia.dsl.framework.util.DocumentUtil;
 
 public class Translator extends Task {
+
     private final String xslt;
 
-    public Translator(String id, Slot inputSlot, Slot outputSlot, String xslt) {
+    Translator(String id, Slot inputSlot, Slot outputSlot, String xslt) {
         super(id, TaskType.MODIFIER);
 
         addInputSlot(inputSlot);
@@ -25,24 +18,23 @@ public class Translator extends Task {
 
         this.xslt = xslt;
     }
-    
+
     @Override
     public void execute() throws Exception {
-        var d = inputSlots.get(0).getDocument();
-        
-        if (d == null) {
-            throw new Exception("No hay ningún documento para transformar");
+        var in = inputSlots.get(0);
+
+        while (in.hasMessage()) {
+            var m = in.getMessage();
+
+            if (!m.hasDocument()) {
+                throw new Exception("No hay Documento en el slot de entrada para Translator '" + id + "'");
+            }
+
+            var d = m.getDocument();
+
+            DocumentUtil.applyXslt(d, xslt);
+
+            outputSlots.get(0).setMessage(new Message(m.getId(), d, m.getHeaders()));
         }
-        
-        TransformerFactory factory = TransformerFactory.newInstance();
-        StreamSource xsltSource = new StreamSource(new StringReader(xslt));
-        Transformer transformer = factory.newTransformer(xsltSource);
-        
-        DOMSource source = new DOMSource(d);
-        DOMResult result = new DOMResult();
-        
-        transformer.transform(source, result);
-        
-        outputSlots.get(0).setDocument((Document) result.getNode());
     }
 }

@@ -6,14 +6,16 @@ import javax.xml.xpath.XPathFactory;
 import org.w3c.dom.Document;
 import org.w3c.dom.Node;
 
-import iia.dsl.framework.Slot;
-import iia.dsl.framework.Task;
-import iia.dsl.framework.TaskType;
+import iia.dsl.framework.core.Message;
+import iia.dsl.framework.core.Slot;
+import iia.dsl.framework.tasks.Task;
+import iia.dsl.framework.tasks.TaskType;
 
 public class Slimmer extends Task {
+
     private final String xpath;
 
-    public Slimmer(String id, Slot inputSlot, Slot outputSlot, String xpath) {
+    Slimmer(String id, Slot inputSlot, Slot outputSlot, String xpath) {
         super(id, TaskType.MODIFIER);
 
         addInputSlot(inputSlot);
@@ -21,29 +23,36 @@ public class Slimmer extends Task {
 
         this.xpath = xpath;
     }
-    
+
     @Override
     public void execute() throws Exception {
-        var d = inputSlots.get(0).getDocument();
-        
-        if (d == null) {
-            throw new Exception("No hay ningun documento para leer");
-        }
-        
-        var xf = XPathFactory.newInstance();
-        var x = xf.newXPath();
-        
-        var ce = x.compile(xpath);
-        var node = ce.evaluate(d, XPathConstants.NODE);
-        
-        if (node != null) {
-            var dr = (Document) d.cloneNode(true);
+        var in = inputSlots.get(0);
 
-            var nodeToRemove = ce.evaluate(dr, XPathConstants.NODE);
+        while (in.hasMessage()) {
+            var m = in.getMessage();
 
-            if (nodeToRemove != null && nodeToRemove instanceof Node) {
-                ((Node)nodeToRemove).getParentNode().removeChild((Node)nodeToRemove);
-                outputSlots.get(0).setDocument(dr);
+            if (!m.hasDocument()) {
+                throw new Exception("No hay ningun documento para leer");
+            }
+
+            var d = m.getDocument();
+
+            var xf = XPathFactory.newInstance();
+            var x = xf.newXPath();
+
+            var ce = x.compile(xpath);
+            var node = ce.evaluate(d, XPathConstants.NODE);
+
+            if (node != null) {
+                var dr = (Document) d.cloneNode(true);
+
+                var nodeToRemove = ce.evaluate(dr, XPathConstants.NODE);
+
+                if (nodeToRemove != null && nodeToRemove instanceof Node) {
+                    ((Node) nodeToRemove).getParentNode().removeChild((Node) nodeToRemove);
+
+                    outputSlots.get(0).setMessage(new Message(m.getId(), dr, m.getHeaders()));
+                }
             }
         }
     }

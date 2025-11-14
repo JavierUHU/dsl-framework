@@ -1,54 +1,78 @@
 package iia.dsl.framework.tasks.modifiers;
 
-import iia.dsl.framework.Slot;
-import iia.dsl.framework.Task;
-import iia.dsl.framework.TaskType;
-import iia.dsl.framework.Message; 
-import org.w3c.dom.Document;
-import org.w3c.dom.Element;
+import javax.xml.xpath.XPathConstants;
+import javax.xml.xpath.XPathFactory;
 
+import org.w3c.dom.Node;
+
+import iia.dsl.framework.core.Slot;
+import iia.dsl.framework.tasks.Task;
+import iia.dsl.framework.tasks.TaskType;
 
 public class ContextEnricher extends Task {
-    
-    // Nodo para el contexto
-    private static final String CONTEXT_NODE_NAME = "context";
-    
-    public ContextEnricher(String id, Slot input, Slot output) {
+
+    ContextEnricher(String id, Slot input, Slot context, Slot output) {
         super(id, TaskType.MODIFIER);
-        
-        if (input != null) addInputSlot(input);
-        if (output != null) addOutputSlot(output);
+
+        if (input != null) {
+            addInputSlot(input);
+        }
+        if (context != null) {
+            addInputSlot(context);
+        }
+        if (output != null) {
+            addOutputSlot(output);
+        }
     }
 
     @Override
     public void execute() throws Exception {
-        Slot in = inputSlots.get(0);
-        Document d = in.getDocument();
-        Message message = in.getMessage();
+        var in = inputSlots.get(0);
+        var context = inputSlots.get(1);
 
-        if (d == null) {
-            System.out.println("ContextEnricher '" + id + "' no tiene documento para enriquecer.");
-            return; 
-        }
-        
-     
-        Document enrichedDoc = (Document) d.cloneNode(true);
-        Element root = enrichedDoc.getDocumentElement();
+        while (in.hasMessage() && context.hasMessage()) {
+            var m = in.getMessage();
+            var contextMessage = context.getMessage();
 
-        Element contextElement = enrichedDoc.createElement(CONTEXT_NODE_NAME);
-        
-        contextElement.setAttribute("enrichedBy", getClass().getSimpleName());
-        contextElement.setAttribute("timestamp", String.valueOf(java.time.Instant.now()));
-        
-        if (message != null) {
-             contextElement.setAttribute("messageId", message.getId()); 
-        }
-        
-        root.appendChild(contextElement);
-        
-        for (Slot out : outputSlots) {
-            out.setDocument(enrichedDoc);
-            System.out.println("✓ ContextEnricher '" + id + "' enriqueció documento y escribió en slot: " + out.getId());
+            if (!m.hasDocument()) {
+                throw new Exception("No hay Documento en el slot de entrada para ContextEnricher");
+            }
+
+            if (!contextMessage.hasDocument()) {
+                throw new Exception("No hay Documento en el slot de contexto para ContextEnricher");
+            }
+
+            // Saca el xpath del cuerpo del mensaje de contexto
+            var xpath = "/context/xpath";
+            var xpathFactory = XPathFactory.newInstance();
+            var xpathExpr = xpathFactory.newXPath().compile(xpath);
+            var contextNode = (Node) xpathExpr.evaluate(contextMessage.getDocument(), XPathConstants.NODE);
+            if (contextNode == null) {
+                throw new Exception("No se encontró el nodo de XPath en el mensaje de contexto para ContextEnricher");
+            }
+
+            // Saca el cuerpo con el cual enriquecer el mensaje desde el mensaje de contexto
+            xpath = "/context/body";
+            xpathExpr = xpathFactory.newXPath().compile(xpath);
+            var bodyNode = (Node) xpathExpr.evaluate(contextMessage.getDocument(), XPathConstants.NODE);
+            if (bodyNode == null) {
+                throw new Exception("No se encontró el nodo de cuerpo en el mensaje de contexto para ContextEnricher");
+            }
+
+            // Saca el nodo a enriquecer usando el xpath del mensaje de contexto
+            xpath = contextNode.getFirstChild().getNodeValue();
+            xpathExpr = xpathFactory.newXPath().compile(xpath);
+            var enrichNode = (Node) xpathExpr.evaluate(m.getDocument(), XPathConstants.NODE);
+            if (enrichNode == null) {
+                throw new Exception("No se encontró el nodo a enriquecer en el mensaje para ContextEnricher");
+            }
+
+            // Enriquece el nodo
+            // Importar el nodo del contexto al documento del mensaje antes de agregarlo
+            Node importedBody = m.getDocument().importNode(bodyNode, true);
+            enrichNode.appendChild(importedBody);
+
+            outputSlots.get(0).setMessage(m);
         }
     }
 }

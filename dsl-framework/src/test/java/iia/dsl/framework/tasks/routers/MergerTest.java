@@ -1,14 +1,16 @@
 package iia.dsl.framework.tasks.routers;
 
+import java.util.List;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import org.junit.jupiter.api.Test;
 import org.w3c.dom.Document;
 
-import iia.dsl.framework.Slot;
+import iia.dsl.framework.core.Message;
+import iia.dsl.framework.core.Slot;
 import iia.dsl.framework.util.TestUtils;
-import java.util.List;
 
 /**
  * Test unitario para la tarea Merger.
@@ -54,9 +56,9 @@ public class MergerTest {
         Slot input3 = new Slot("input3");
         Slot output = new Slot("output");
         
-        input1.setDocument(doc1);
-        input2.setDocument(doc2);
-        input3.setDocument(doc3);
+        input1.setMessage(new Message(doc1));
+        input2.setMessage(new Message(doc2));
+        input3.setMessage(new Message(doc3));
         
         Merger merger = new Merger("test-merger", 
             List.of(input1, input2, input3), 
@@ -65,14 +67,9 @@ public class MergerTest {
         // Act
         merger.execute();
         
-        // Assert
-        // Como Slot solo almacena un mensaje a la vez, el último procesado prevalece
-        // En este caso, doc3 (último input slot)
-        Document result = output.getDocument();
-        assertNotNull(result, "Output document should not be null");
-        
-        String source = result.getElementsByTagName("source").item(0).getTextContent();
-        assertEquals("Input3", source, "Should contain content from last input slot");
+        assertTrue(output.hasMessage(), "Output document should not be null");
+
+        assertEquals(3, output.getMessageCount(), "Output should contain the three merged messages");
     }
     
     @Test
@@ -93,7 +90,7 @@ public class MergerTest {
         Slot input3 = new Slot("input3"); // Vacío
         Slot output = new Slot("output");
         
-        input1.setDocument(doc1);
+        input1.setMessage(new Message(doc1));
         // input2 e input3 quedan sin documento
         
         Merger merger = new Merger("test-merger", 
@@ -103,11 +100,9 @@ public class MergerTest {
         // Act
         merger.execute();
         
-        // Assert
-        Document result = output.getDocument();
-        assertNotNull(result, "Output should contain the document from input1");
+        assertTrue(output.hasMessage(), "Output should contain the document from input1");
         
-        String data = result.getElementsByTagName("data").item(0).getTextContent();
+        String data = output.getMessage().getDocument().getElementsByTagName("data").item(0).getFirstChild().getNodeValue();
         assertEquals("Valid data", data);
     }
     
@@ -128,9 +123,7 @@ public class MergerTest {
         merger.execute();
         
         // Assert
-        // El output debería permanecer vacío
-        Document result = output.getDocument();
-        assertNull(result, "Output should be null when all inputs are empty");
+        assertFalse(output.hasMessage(), "Output should be null when all inputs are empty");
     }
     
     @Test
@@ -141,7 +134,7 @@ public class MergerTest {
         Slot input = new Slot("input");
         Slot output = new Slot("output");
         
-        input.setDocument(doc);
+        input.setMessage(new Message(doc));
         
         Merger merger = new Merger("test-merger", 
             List.of(input), 
@@ -151,9 +144,8 @@ public class MergerTest {
         merger.execute();
         
         // Assert
-        Document result = output.getDocument();
-        assertNotNull(result, "Output should contain the document");
-        assertEquals("order", result.getDocumentElement().getNodeName());
+        assertTrue(output.hasMessage(), "Output should contain the document");
+        assertEquals("order", output.getMessage().getDocument().getDocumentElement().getNodeName());
     }
     
     @Test
@@ -189,8 +181,8 @@ public class MergerTest {
         Slot branch2 = new Slot("branch2");
         Slot output = new Slot("output");
         
-        input1.setDocument(doc1);
-        input2.setDocument(doc2);
+        input1.setMessage(new Message(doc1));
+        input2.setMessage(new Message(doc2));
         
         // Filtros que aceptan órdenes con al menos 1 item
         Filter filter1 = new Filter("filter1", input1, branch1, 
@@ -207,10 +199,9 @@ public class MergerTest {
         merger.execute();
         
         // Assert
-        Document result = output.getDocument();
-        assertNotNull(result, "Output should contain merged document");
+        assertTrue(output.hasMessage(), "Output should contain merged document");
         
         // Verificar que es un documento de pedido válido
-        assertEquals("order", result.getDocumentElement().getNodeName());
+        assertEquals("order", output.getMessage().getDocument().getDocumentElement().getNodeName());
     }
 }

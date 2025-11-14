@@ -2,19 +2,20 @@ package iia.dsl.framework.tasks.routers;
 
 import javax.xml.xpath.XPathExpressionException;
 
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import org.junit.jupiter.api.Test;
 import org.w3c.dom.Document;
 
-import iia.dsl.framework.Slot;
+import iia.dsl.framework.core.Message;
+import iia.dsl.framework.core.Slot;
 import iia.dsl.framework.util.TestUtils;
 
 public class FilterTest {
     
     @Test
-    public void testFilterAcceptedDocument() throws XPathExpressionException {
+    public void testFilterAcceptedDocument() throws Exception {
         // Arrange
         String xml = TestUtils.SAMPLE_XML;
         Document doc = TestUtils.createXMLDocument(xml);
@@ -22,7 +23,7 @@ public class FilterTest {
         Slot inputSlot = new Slot("input");
         Slot outputSlot = new Slot("output");
         
-        inputSlot.setDocument(doc);
+        inputSlot.setMessage(new Message(doc));
         
         // Filtrar órdenes con más de 2 items
         Filter filter = new Filter("test-filter", inputSlot, outputSlot, 
@@ -32,11 +33,11 @@ public class FilterTest {
         filter.execute();
         
         // Assert
-        assertNull(outputSlot.getDocument(), "Document should be filtered out as it has only 2 items");
+        assertFalse(outputSlot.hasMessage(), "Document should be filtered out as it has only 2 items");
     }
     
     @Test
-    public void testFilterPassedDocument() throws XPathExpressionException {
+    public void testFilterPassedDocument() throws Exception {
         // Arrange
         String xml = TestUtils.SAMPLE_XML;
         Document doc = TestUtils.createXMLDocument(xml);
@@ -44,7 +45,7 @@ public class FilterTest {
         Slot inputSlot = new Slot("input");
         Slot outputSlot = new Slot("output");
         
-        inputSlot.setDocument(doc);
+        inputSlot.setMessage(new Message(doc));
         
         // Filtrar órdenes con al menos 1 item
         Filter filter = new Filter("test-filter", inputSlot, outputSlot, 
@@ -54,7 +55,7 @@ public class FilterTest {
         filter.execute();
         
         // Assert
-        assertNotNull(outputSlot.getDocument(), "Document should pass filter as it has items");
+        assertTrue(outputSlot.hasMessage(), "Document should pass filter as it has items");
     }
     
     @Test
@@ -66,7 +67,7 @@ public class FilterTest {
         Slot inputSlot = new Slot("input");
         Slot outputSlot = new Slot("output");
         
-        inputSlot.setDocument(doc);
+        inputSlot.setMessage(new Message(doc));
         
         Filter filter = new Filter("test-filter", inputSlot, outputSlot, "invalid xpath expression");
         

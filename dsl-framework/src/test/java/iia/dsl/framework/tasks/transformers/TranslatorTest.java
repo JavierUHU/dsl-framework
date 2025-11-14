@@ -1,13 +1,13 @@
 package iia.dsl.framework.tasks.transformers;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import org.junit.jupiter.api.Test;
 import org.w3c.dom.Document;
 
-import iia.dsl.framework.Slot;
+import iia.dsl.framework.core.Message;
+import iia.dsl.framework.core.Slot;
 import iia.dsl.framework.util.TestUtils;
 
 public class TranslatorTest {
@@ -35,7 +35,7 @@ public class TranslatorTest {
         Slot inputSlot = new Slot("input");
         Slot outputSlot = new Slot("output");
         
-        inputSlot.setDocument(doc);
+        inputSlot.setMessage(new Message(doc));
         
         Translator translator = new Translator("test-translator", inputSlot, outputSlot, SIMPLE_XSLT);
         
@@ -43,16 +43,16 @@ public class TranslatorTest {
         translator.execute();
         
         // Assert
-        Document result = outputSlot.getDocument();
-        assertNotNull(result, "Output document should not be null");
+        Document result = outputSlot.getMessage().getDocument();
+        assertTrue(outputSlot.hasMessage(), "Output document should not be null");
         
         assertEquals("summary", result.getDocumentElement().getNodeName(), 
                 "Root element should be 'summary'");
         
-        String orderId = result.getElementsByTagName("orderId").item(0).getTextContent();
+        String orderId = result.getElementsByTagName("orderId").item(0).getFirstChild().getNodeValue();
         assertEquals("12345", orderId, "OrderId should be preserved");
         
-        String itemCount = result.getElementsByTagName("itemCount").item(0).getTextContent();
+        String itemCount = result.getElementsByTagName("itemCount").item(0).getFirstChild().getNodeValue();
         assertEquals("2", itemCount, "Item count should be 2");
     }
     
@@ -80,7 +80,7 @@ public class TranslatorTest {
         Slot inputSlot = new Slot("input");
         Slot outputSlot = new Slot("output");
         
-        inputSlot.setDocument(doc);
+        inputSlot.setMessage(new Message(doc));
         
         String invalidXslt = "<?xml version='1.0'?><invalid>not xslt</invalid>";
         Translator translator = new Translator("test-translator", inputSlot, outputSlot, invalidXslt);
@@ -99,7 +99,7 @@ public class TranslatorTest {
         Slot inputSlot = new Slot("input");
         Slot outputSlot = new Slot("output");
         
-        inputSlot.setDocument(doc);
+        inputSlot.setMessage(new Message(doc));
         
         // XSLT de identidad: copia todo tal cual
         String identityXslt = """
@@ -119,8 +119,8 @@ public class TranslatorTest {
         translator.execute();
         
         // Assert
-        Document result = outputSlot.getDocument();
-        assertNotNull(result);
+        Document result = outputSlot.getMessage().getDocument();
+        assertTrue(outputSlot.hasMessage(), "Output document should not be null");
         assertEquals("order", result.getDocumentElement().getNodeName());
     }
 }

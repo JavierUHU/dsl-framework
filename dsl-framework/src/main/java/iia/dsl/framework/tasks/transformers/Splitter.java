@@ -1,85 +1,78 @@
 package iia.dsl.framework.tasks.transformers;
 
-import iia.dsl.framework.Slot;
-import iia.dsl.framework.Task;
-import iia.dsl.framework.TaskType;
-import iia.dsl.framework.Storage;
-import org.w3c.dom.Document;
-import org.w3c.dom.Node;
-import org.w3c.dom.NodeList;
-
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.xpath.XPathConstants;
 import javax.xml.xpath.XPathFactory;
-import java.util.ArrayList;
-import java.util.List;
+
+import org.w3c.dom.Document;
+import org.w3c.dom.Node;
+import org.w3c.dom.NodeList;
+
+import iia.dsl.framework.core.Message;
+import iia.dsl.framework.core.Slot;
+import iia.dsl.framework.tasks.Task;
+import iia.dsl.framework.tasks.TaskType;
+import iia.dsl.framework.util.Storage;
 
 public class Splitter extends Task {
+
     private final String itemXPath;
-    private final DocumentBuilder docBuilder;
 
-    public Splitter(String id, Slot inputSlot, Slot outputSlot, String itemXPath) {
+    Splitter(String id, Slot inputSlot, Slot outputSlot, String itemXPath) {
         super(id, TaskType.TRANSFORMER);
-        
-        if (inputSlot != null) addInputSlot(inputSlot);
-        if (outputSlot != null) addOutputSlot(outputSlot);
         this.itemXPath = itemXPath;
-
-        try {
-            DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
-            this.docBuilder = factory.newDocumentBuilder();
-        } catch (Exception e) {
-            throw new RuntimeException("Error initializing DocumentBuilder for Splitter", e);
-        }
+        this.addInputSlot(inputSlot);
+        this.addOutputSlot(outputSlot);
     }
 
     @Override
     public void execute() throws Exception {
-        Storage storage = Storage.getInstance();
-        Slot in = inputSlots.get(0);
-        Slot out = outputSlots.get(0);
-        Document d = in.getDocument();
-        
-        String parentId = in.getMessageId();
-        
-        if (d == null) {
-            System.out.println("Splitter '" + id + "' no tiene documento para dividir.");
-            return;
+        var in = inputSlots.get(0);
+
+        while (in.hasMessage()) {
+            var m = in.getMessage();
+
+            if (!m.hasDocument()) {
+                throw new Exception("No hay ningun documento para leer");
+            }
+
+            var d = m.getDocument();
+
+            var xf = XPathFactory.newInstance();
+            var x = xf.newXPath();
+
+            var ce = x.compile(itemXPath);
+            var nodes = (NodeList) ce.evaluate(d, XPathConstants.NODESET);
+
+            DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
+            factory.setNamespaceAware(true);
+            DocumentBuilder builder = factory.newDocumentBuilder();
+
+            if (nodes != null) {
+                int totalNodes = nodes.getLength();
+                for (int i = 0; i < totalNodes; i++) {
+                    Node node = nodes.item(i);
+                    if (node != null) {
+                        // Eliminar el nodo de su padre real, no del documento
+                        Node parent = node.getParentNode();
+                        if (parent != null) {
+                            parent.removeChild(node);
+                        }
+
+                        Document dr = builder.newDocument();
+                        Node importedNode = dr.importNode(node, true);
+                        dr.appendChild(importedNode);
+
+                        Message msg = new Message(m.getId(), dr, m.getHeaders());
+                        msg.addHeader(Message.NUM_FRAG, "" + i);
+                        msg.addHeader(Message.TOTAL_FRAG, "" + totalNodes);
+                        outputSlots.get(0).setMessage(msg);
+                    }
+                }
+            }
+
+            Storage.getInstance().storeDocument(m.getId(), d);
         }
-
-        NodeList nodesToSplit = (NodeList) XPathFactory.newInstance()
-            .newXPath()
-            .compile(itemXPath)
-            .evaluate(d, XPathConstants.NODESET);
-
-        if (nodesToSplit.getLength() == 0) {
-            System.out.println("Splitter '" + id + "': XPath no encontró nodos para dividir.");
-            return;
-        }
-        
-        System.out.println("Splitter '" + id + "' dividiendo en " + nodesToSplit.getLength() + " partes. ID común: " + parentId);
-
-        List<Integer> partSequenceIndices = new ArrayList<>();
-
-        for (int i = 0; i < nodesToSplit.getLength(); i++) {
-            Node splitNode = nodesToSplit.item(i);
-            
-            Document newDoc = docBuilder.newDocument();
-            Node importedNode = newDoc.importNode(splitNode, true);
-            newDoc.appendChild(importedNode);
-            
-            // La clave de almacenamiento es: ID_PADRE + -part- + ÍNDICE
-            String partKey = parentId + "-part-" + i;
-            
-            storage.storeDocument(partKey, newDoc);
-            
-            partSequenceIndices.add(i); 
-            out.setDocument(newDoc); 
-        }
-        
-        String sequenceKey = parentId;
-        storage.storePartSequence(sequenceKey, partSequenceIndices);
-        System.out.println("✓ Splitter '" + id + "' completado. Secuencia de " + partSequenceIndices.size() + " partes guardada.");
     }
 }

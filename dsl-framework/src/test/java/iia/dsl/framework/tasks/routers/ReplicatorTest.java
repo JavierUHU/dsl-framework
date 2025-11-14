@@ -1,16 +1,24 @@
 package iia.dsl.framework.tasks.routers;
 
-import iia.dsl.framework.Slot;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-import org.w3c.dom.Document;
-import javax.xml.parsers.DocumentBuilder;
-import javax.xml.parsers.DocumentBuilderFactory;
 import java.io.ByteArrayInputStream;
 import java.util.ArrayList;
 import java.util.List;
 
-import static org.junit.jupiter.api.Assertions.*;
+import javax.xml.parsers.DocumentBuilder;
+import javax.xml.parsers.DocumentBuilderFactory;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNotSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.w3c.dom.Document;
+
+import iia.dsl.framework.core.Message;
+import iia.dsl.framework.core.Slot;
 
 class ReplicatorTest {
     
@@ -21,6 +29,7 @@ class ReplicatorTest {
     private DocumentBuilderFactory factory;
     
     @BeforeEach
+    @SuppressWarnings("unused")
     void setUp() {
         inputSlot = new Slot("input-slot");
         outputSlot1 = new Slot("output-slot-1");
@@ -59,31 +68,31 @@ class ReplicatorTest {
     void testReplicateToMultipleSlots() throws Exception {
         String xml = "<message><content>Test Message</content></message>";
         Document doc = createXmlDocument(xml);
-        inputSlot.setDocument(doc);
+        inputSlot.setMessage(new Message(doc));
         
         List<Slot> outputSlots = List.of(outputSlot1, outputSlot2, outputSlot3);
         Replicator replicator = new Replicator("rep-1", inputSlot, outputSlots);
         
         replicator.execute();
         
-        assertNotNull(outputSlot1.getDocument());
-        assertNotNull(outputSlot2.getDocument());
-        assertNotNull(outputSlot3.getDocument());
+        assertTrue(outputSlot1.hasMessage());
+        assertTrue(outputSlot2.hasMessage());
+        assertTrue(outputSlot3.hasMessage());
     }
     
     @Test
     void testDocumentsAreIndependentCopies() throws Exception {
         String xml = "<message><content>Original</content></message>";
         Document doc = createXmlDocument(xml);
-        inputSlot.setDocument(doc);
+        inputSlot.setMessage(new Message(doc));
         
         List<Slot> outputSlots = List.of(outputSlot1, outputSlot2);
         Replicator replicator = new Replicator("rep-1", inputSlot, outputSlots);
         
         replicator.execute();
         
-        Document doc1 = outputSlot1.getDocument();
-        Document doc2 = outputSlot2.getDocument();
+        Document doc1 = outputSlot1.getMessage().getDocument();
+        Document doc2 = outputSlot2.getMessage().getDocument();
         
         assertNotNull(doc1);
         assertNotNull(doc2);
@@ -94,7 +103,7 @@ class ReplicatorTest {
     
     @Test
     void testThrowsExceptionWhenNoDocument() throws Exception {
-        inputSlot.setDocument(null);
+        inputSlot.setMessage(null);
         
         List<Slot> outputSlots = List.of(outputSlot1);
         Replicator replicator = new Replicator("rep-1", inputSlot, outputSlots);
@@ -110,30 +119,29 @@ class ReplicatorTest {
     void testReplicateToSingleSlot() throws Exception {
         String xml = "<data><value>123</value></data>";
         Document doc = createXmlDocument(xml);
-        inputSlot.setDocument(doc);
+        inputSlot.setMessage(new Message(doc));
         
         List<Slot> outputSlots = List.of(outputSlot1);
         Replicator replicator = new Replicator("rep-1", inputSlot, outputSlots);
         
         replicator.execute();
         
-        assertNotNull(outputSlot1.getDocument());
-        assertNull(outputSlot2.getDocument());
+        assertTrue(outputSlot1.hasMessage());
+        assertFalse(outputSlot2.hasMessage());
     }
     
     @Test
     void testContentPreservationAfterReplication() throws Exception {
         String xml = "<order><id>12345</id><amount>100.50</amount></order>";
         Document doc = createXmlDocument(xml);
-        inputSlot.setDocument(doc);
+        inputSlot.setMessage(new Message(doc));
         
         List<Slot> outputSlots = List.of(outputSlot1, outputSlot2);
         Replicator replicator = new Replicator("rep-1", inputSlot, outputSlots);
         
         replicator.execute();
         
-        Document replicatedDoc = outputSlot1.getDocument();
-        assertNotNull(replicatedDoc);
-        assertEquals("order", replicatedDoc.getDocumentElement().getNodeName());
+        assertTrue(outputSlot1.hasMessage());
+        assertEquals("order", outputSlot1.getMessage().getDocument().getDocumentElement().getNodeName());
     }
 }

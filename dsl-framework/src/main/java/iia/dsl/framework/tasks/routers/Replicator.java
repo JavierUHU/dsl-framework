@@ -1,19 +1,20 @@
 package iia.dsl.framework.tasks.routers;
 
-import iia.dsl.framework.Slot;
-import iia.dsl.framework.Task;
-import iia.dsl.framework.TaskType;
-import org.w3c.dom.Document;
 import java.util.List;
+
+import iia.dsl.framework.core.Message;
+import iia.dsl.framework.core.Slot;
+import iia.dsl.framework.tasks.Task;
+import iia.dsl.framework.tasks.TaskType;
 
 public class Replicator extends Task {
 
-    public Replicator(String id, Slot inputSlot, List<Slot> outputSlots) {
+    Replicator(String id, Slot inputSlot, List<Slot> outputSlots) {
         super(id, TaskType.ROUTER);
-        
+
         addInputSlot(inputSlot);
         outputSlots.forEach(this::addOutputSlot);
-        
+
         if (outputSlots.isEmpty()) {
             throw new IllegalArgumentException("Replicator debe tener al menos un slot de salida.");
         }
@@ -21,17 +22,18 @@ public class Replicator extends Task {
 
     @Override
     public void execute() throws Exception {
-        Document d = inputSlots.get(0).getDocument();
-        
-        if (d == null) {
-            throw new Exception("Replicator '" + id + "' no tiene documento para duplicar.");
-        }
+        var in = inputSlots.get(0);
 
-       
-        for (Slot outputSlot : outputSlots) {
-            Document docCopy = (Document) d.cloneNode(true);
-            outputSlot.setDocument(docCopy);
-            System.out.println("✓ Replicator '" + id + "' duplicó mensaje a slot: " + outputSlot.getId());
+        while (in.hasMessage()) {
+            var m = in.getMessage();
+
+            if (!m.hasDocument()) {
+                throw new Exception("Replicator '" + id + "' no tiene documento para duplicar.");
+            }
+
+            for (Slot outputSlot : outputSlots) {
+                outputSlot.setMessage(new Message(m));
+            }
         }
     }
 }

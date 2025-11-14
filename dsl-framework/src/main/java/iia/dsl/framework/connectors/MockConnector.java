@@ -1,20 +1,17 @@
-/*
- * Click nbfs://nbhost/SystemFileSystem/Templates/Licenses/license-default.txt to change this license
- * Click nbfs://nbhost/SystemFileSystem/Templates/Classes/Class.java to edit this template
- */
-package iia.dsl.framework;
+package iia.dsl.framework.connectors;
 
 import org.w3c.dom.Document;
 
-/**
- *
- * @author Daniel
- */
 public class MockConnector extends Connector {
-    private Document mockDocument;
+    private final Document mockDocument;
     
     public MockConnector(String id, Document mockDocument) {
         super(id);
+        this.mockDocument = mockDocument;
+    }
+
+    public MockConnector(Document mockDocument) {
+        super();
         this.mockDocument = mockDocument;
     }
     

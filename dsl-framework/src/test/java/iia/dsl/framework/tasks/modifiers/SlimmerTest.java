@@ -1,11 +1,17 @@
 package iia.dsl.framework.tasks.modifiers;
 
-import static org.junit.jupiter.api.Assertions.*;
+import javax.xml.xpath.XPathExpressionException;
+
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import org.junit.jupiter.api.Test;
 import org.w3c.dom.Document;
 import org.w3c.dom.Node;
 
-import iia.dsl.framework.Slot;
+import iia.dsl.framework.core.Message;
+import iia.dsl.framework.core.Slot;
 import iia.dsl.framework.util.TestUtils;
 
 public class SlimmerTest {
@@ -16,8 +22,8 @@ public class SlimmerTest {
 
         Slot inputSlot = new Slot("input");
         Slot outputSlot = new Slot("output");
-
-        inputSlot.setDocument(doc);
+        
+        inputSlot.setMessage(new Message(doc));
 
         // Configurar Slimmer para remover el header
         Slimmer slimmer = new Slimmer("test-slimmer", inputSlot, outputSlot, "/order/header");
@@ -26,7 +32,7 @@ public class SlimmerTest {
         slimmer.execute();
 
         // Assert
-        Document result = outputSlot.getDocument();
+        Document result = outputSlot.getMessage().getDocument();
         assertNotNull(result, "Output document should not be null");
 
         Node headerNode = result.getElementsByTagName("header").item(0);
@@ -45,13 +51,16 @@ public class SlimmerTest {
         Slot inputSlot = new Slot("input");
         Slot outputSlot = new Slot("output");
 
-        inputSlot.setDocument(doc);
+        inputSlot.setMessage(new Message(doc));
 
         Slimmer slimmer = new Slimmer("test-slimmer", inputSlot, outputSlot, "invalid xpath expression");
 
         // Act & Assert - Esperamos que lance excepción
-        assertThrows(Exception.class, () -> {
+        var exception = assertThrows(Exception.class, () -> {
             slimmer.execute();
         });
+
+        assertTrue(exception instanceof  XPathExpressionException, 
+            "Invalid XPath should throw XPathExpressionException");
     }
 }

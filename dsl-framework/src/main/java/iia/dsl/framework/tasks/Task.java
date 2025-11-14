@@ -1,9 +1,12 @@
-package iia.dsl.framework;
+package iia.dsl.framework.tasks;
 
 import java.util.ArrayList;
 import java.util.List;
 
-public abstract class Task extends Element {
+import iia.dsl.framework.core.ExecutableElement;
+import iia.dsl.framework.core.Slot;
+
+public abstract class Task extends ExecutableElement {
     protected final List<Slot> inputSlots;
     protected final List<Slot> outputSlots;
     protected final TaskType type;
@@ -13,6 +16,10 @@ public abstract class Task extends Element {
         this.inputSlots = new ArrayList<>();
         this.outputSlots = new ArrayList<>();
         this.type = type;
+    }
+
+    public void addOutputSlots(List<Slot> outputsSlot) {
+        outputSlots.addAll(outputsSlot);
     }
     
     public final void addInputSlot(Slot slot) {
@@ -30,10 +37,8 @@ public abstract class Task extends Element {
     public List<Slot> getOutputSlots() {
         return outputSlots;
     }
-    
-    public abstract void execute() throws Exception;
 
-    String getType() {
+    public String getType() {
         return this.getClass().getName();
     }
 }

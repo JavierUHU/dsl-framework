@@ -3,76 +3,54 @@ package iia.dsl.framework.tasks.modifiers;
 import javax.xml.xpath.XPathConstants;
 import javax.xml.xpath.XPathFactory;
 
-import org.w3c.dom.Document;
 import org.w3c.dom.Node;
-import org.w3c.dom.NodeList;
 
-import iia.dsl.framework.Slot;
-import iia.dsl.framework.Task;
-import iia.dsl.framework.TaskType;
+import iia.dsl.framework.core.Slot;
+import iia.dsl.framework.tasks.Task;
+import iia.dsl.framework.tasks.TaskType;
 
-/**
- * ContextSlimmer Task - Modifier que elimina información de contexto innecesaria.
- * 
- * Similar a Slimmer, pero diseñado específicamente para eliminar metadatos,
- * información de contexto, headers temporales, o datos de enrutamiento que
- * ya no son necesarios en una etapa posterior del pipeline.
- * 
- * Puede eliminar múltiples nodos que coincidan con el XPath especificado.
- * 
- * @author Javi
- */
 public class ContextSlimmer extends Task {
-    private final String xpath;
-
-    /**
-     * Constructor del ContextSlimmer.
-     * 
-     * @param id Identificador único de la tarea
-     * @param inputSlot Slot de entrada con el documento a procesar
-     * @param outputSlot Slot de salida donde se escribirá el documento sin contexto
-     * @param xpath Expresión XPath para identificar nodos de contexto a eliminar
-     */
-    public ContextSlimmer(String id, Slot inputSlot, Slot outputSlot, String xpath) {
+    ContextSlimmer(String id, Slot inputSlot, Slot contextSlot, Slot outputSlot) {
         super(id, TaskType.MODIFIER);
 
         addInputSlot(inputSlot);
+        addInputSlot(contextSlot);
         addOutputSlot(outputSlot);
-
-        this.xpath = xpath;
     }
     
     @Override
     public void execute() throws Exception {
-        var d = inputSlots.get(0).getDocument();
+        var in = inputSlots.get(0);
+        var context = inputSlots.get(1);
         
-        if (d == null) {
-            throw new Exception("No hay ningún documento para procesar");
-        }
-        
-        var xf = XPathFactory.newInstance();
-        var x = xf.newXPath();
-        
-        var ce = x.compile(xpath);
-        
-        // Clonar el documento para no modificar el original
-        var dr = (Document) d.cloneNode(true);
-        
-        // Evaluar XPath para encontrar todos los nodos que coincidan
-        var nodeList = ce.evaluate(dr, XPathConstants.NODESET);
-        
-        if (nodeList != null && nodeList instanceof NodeList) {
-            NodeList nodes = (NodeList) nodeList;
+        while (in.hasMessage() && context.hasMessage()) {
+            var m = in.getMessage();
+            var contextMessage = context.getMessage();
             
-            // Eliminar todos los nodos encontrados (iterar en reversa para evitar problemas de índice)
-            for (int i = nodes.getLength() - 1; i >= 0; i--) {
-                Node node = nodes.item(i);
-                if (node != null && node.getParentNode() != null) {
-                    node.getParentNode().removeChild(node);
-                }
+            if (!m.hasDocument() || !contextMessage.hasDocument()) {
+                throw new Exception("No hay Documento en el slot de entrada para ContextSlimmer");
             }
+            
+            // Saca el xpath del cuerpo del mensaje de contexto
+            var xpath = "/xpath";
+            var xpathFactory = XPathFactory.newInstance();
+            var xpathExpr = xpathFactory.newXPath().compile(xpath);
+            var contextNode = (Node) xpathExpr.evaluate(contextMessage.getDocument(), XPathConstants.NODE);
+            if (contextNode == null) {
+                throw new Exception("No se encontró el nodo de XPath en el mensaje de contexto para ContextSlimmer");
+            }
+
+            // Saca el nodo a eliminar usando el xpath del mensaje de contexto
+            xpath = contextNode.getFirstChild().getNodeValue();
+            xpathExpr = xpathFactory.newXPath().compile(xpath);
+            var removeNode = (Node) xpathExpr.evaluate(m.getDocument(), XPathConstants.NODE);
+            if (removeNode == null) {
+                throw new Exception("No se encontró el nodo a eliminar en el mensaje para ContextSlimmer");
+            }
+
+            // Elimina el nodo del mensaje
+            removeNode.getParentNode().removeChild(removeNode);
+            outputSlots.get(0).setMessage(m);
         }
-        
-        outputSlots.get(0).setDocument(dr);
     }
 }

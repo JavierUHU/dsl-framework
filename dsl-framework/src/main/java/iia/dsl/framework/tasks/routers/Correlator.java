@@ -1,69 +1,104 @@
 
 package iia.dsl.framework.tasks.routers;
 
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+
+import javax.xml.xpath.XPathConstants;
 import javax.xml.xpath.XPathFactory;
 
-import iia.dsl.framework.Slot;
-import iia.dsl.framework.Task;
-import iia.dsl.framework.TaskType;
+import org.w3c.dom.Node;
+
+import iia.dsl.framework.core.Message;
+import iia.dsl.framework.core.Slot;
+import iia.dsl.framework.tasks.Task;
+import iia.dsl.framework.tasks.TaskType;
 
 /**
  * Correlator Task - Router que correlaciona mensajes de múltiples entradas.
  * 
- * Correlaciona los mensajes de sus múltiples entradas (normalmente usando un id)
+ * Correlaciona los mensajes de sus múltiples entradas (normalmente usando un
+ * id)
  * y los saca al mismo tiempo por sus múltiples salidas.
  */
 public class Correlator extends Task {
+    private final Map<String, Message[]> messages;
+    private final Optional<String> xPath;
 
-    private final String correlationXPath;
-
-    /**
-     * Constructor del Correlator.
-     * 
-     * @param id Identificador único de la tarea
-     * @param inputSlot1 Primer slot de entrada
-     * @param inputSlot2 Segundo slot de entrada
-     * @param outputSlot1 Primer slot de salida
-     * @param outputSlot2 Segundo slot de salida
-     * @param correlationXPath XPath para extraer el valor de correlación
-     */
-    public Correlator(String id, Slot inputSlot1, Slot inputSlot2, Slot outputSlot1, Slot outputSlot2, String correlationXPath) {
+    Correlator(String id, List<Slot> inputSlots, List<Slot> outputSlots) {
         super(id, TaskType.ROUTER);
-        
-        addInputSlot(inputSlot1);
-        addInputSlot(inputSlot2);
-        addOutputSlot(outputSlot1);
-        addOutputSlot(outputSlot2);
-        
-        this.correlationXPath = correlationXPath;
+        this.inputSlots.addAll(inputSlots);
+        this.outputSlots.addAll(outputSlots);
+        this.messages = new HashMap<>();
+        this.xPath = Optional.empty();
+    }
+
+    Correlator(String id, List<Slot> inputSlots, List<Slot> outputSlots, String xPath) {
+        super(id, TaskType.ROUTER);
+        this.inputSlots.addAll(inputSlots);
+        this.outputSlots.addAll(outputSlots);
+        this.messages = new HashMap<>();
+        this.xPath = Optional.of(xPath);
     }
 
     @Override
     public void execute() throws Exception {
-        // Validar que hay al menos dos entradas y dos salidas
-        if (inputSlots.size() < 2 || outputSlots.size() < 2) {
-            throw new IllegalArgumentException("Debe haber al menos 2 entradas y 2 salidas.");
+        if (inputSlots.size() < 2 || inputSlots.size() != outputSlots.size()) {
+            throw new Exception("Los slots no son correctos");
         }
 
-        var doc1 = inputSlots.get(0).getDocument();
-        var doc2 = inputSlots.get(1).getDocument();
-        
-        if (doc1 == null || doc2 == null) {
-            throw new Exception("No hay documentos en los slots de entrada");
+        for (int i = 0; i < inputSlots.size(); i++) {
+
+            var in = inputSlots.get(i);
+
+            while (in.hasMessage()) {
+                var m = in.getMessage();
+            
+                if (!m.hasDocument()) {
+                    throw new Exception("No hay Documento en el slot de entrada para Correlator '" + id + "'");
+                }
+
+                String correlationId;
+
+                if (xPath.isPresent()) {
+                    XPathFactory xf = XPathFactory.newInstance();
+                    var x = xf.newXPath();
+
+                    var path = x.compile(xPath.get());
+
+                    var correlationIdNode = (Node) path.evaluate(m.getDocument(), XPathConstants.NODE);
+
+                    correlationId = correlationIdNode.getFirstChild().getNodeValue();
+
+                } else {
+                    correlationId = m.getHeader(Message.CORRELATION_ID);
+                }
+
+                if (!messages.containsKey(correlationId)) {
+                    messages.put(correlationId, new Message[outputSlots.size()]);
+                }
+                
+                messages.get(correlationId)[i] = m;
+
+                boolean allReceived = true;
+                for (Message msg : messages.get(correlationId)) {
+                    if (msg == null) {
+                        allReceived = false;
+                        break;
+                    }
+                }
+
+                if(allReceived){
+                    for (int j = 0; j < outputSlots.size(); j++) {
+                        outputSlots.get(j).setMessage(new Message(messages.get(correlationId)[j]));
+                    }
+                    messages.remove(correlationId);
+                }
+            }
         }
-        
-        var xf = XPathFactory.newInstance();
-        var x = xf.newXPath();
-        var ce = x.compile(correlationXPath);
-        
-        // Extraer valores de correlación
-        String value1 = ce.evaluate(doc1);
-        String value2 = ce.evaluate(doc2);
-        
-        // Si los valores coinciden, enviar a las salidas correspondientes
-        if (value1 != null && value1.equals(value2)) {
-            outputSlots.get(0).setDocument(doc1);
-            outputSlots.get(1).setDocument(doc2);
-        }
+
     }
+
 }

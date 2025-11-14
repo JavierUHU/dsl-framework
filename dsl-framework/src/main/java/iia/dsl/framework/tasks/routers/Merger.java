@@ -1,11 +1,10 @@
 package iia.dsl.framework.tasks.routers;
 
-import iia.dsl.framework.Message;
-import iia.dsl.framework.Slot;
-import iia.dsl.framework.Task;
-import iia.dsl.framework.TaskType;
 import java.util.List;
-import org.w3c.dom.Document;
+
+import iia.dsl.framework.core.Slot;
+import iia.dsl.framework.tasks.Task;
+import iia.dsl.framework.tasks.TaskType;
 
 /**
  * Merger Task - Router que combina múltiples flujos de entrada en uno de salida.
@@ -25,7 +24,7 @@ public class Merger extends Task {
      * @param inputSlots Lista de slots de entrada a fusionar
      * @param outputSlot Slot de salida donde se escribirán todos los mensajes
      */
-    public Merger(String id, List<Slot> inputSlots, Slot outputSlot) {
+    Merger(String id, List<Slot> inputSlots, Slot outputSlot) {
         super(id, TaskType.ROUTER);
         
         // Añadir todos los input slots
@@ -51,20 +50,13 @@ public class Merger extends Task {
         
         // Iterar sobre TODOS los inputSlots
         for (Slot inputSlot : inputSlots) {
-            // Leer documento del slot de entrada
-            Document doc = inputSlot.getDocument();
-            
-            // Si hay documento, pasarlo al outputSlot
-            if (doc != null) {
-                // Intentar obtener el mensaje completo (con ID) si existe
-                Message msg = inputSlot.getMessage();
-                
-                if (msg != null) {
-                    // Pasar el mensaje completo (preserva ID)
+            while (inputSlot.hasMessage()) {
+                var msg = inputSlot.getMessage();
+
+                if (msg.hasDocument()) {
                     outputSlot.setMessage(msg);
                 } else {
-                    // Fallback: crear mensaje nuevo con el documento
-                    outputSlot.setDocument(doc);
+                    throw new Exception("No hay Documento en el slot de entrada para Merger '" + id + "'");
                 }
             }
         }
