@@ -12,6 +12,10 @@ import javax.xml.xpath.XPathFactory;
 
 import org.w3c.dom.Document;
 
+import iia.dsl.framework.ports.InputPort;
+import iia.dsl.framework.ports.OutputPort;
+import iia.dsl.framework.ports.RequestPort;
+
 public class DataBaseConnector extends Connector {
 
     private final Optional<String> username;
@@ -38,7 +42,7 @@ public class DataBaseConnector extends Connector {
     }
 
     @Override
-    public Document call(Document input) throws Exception {
+    protected Document call(Document input) throws Exception {
         // Make the conection with jdbc using connectionString
         // and if input is null throw an exception
         if (input == null) {
@@ -51,16 +55,68 @@ public class DataBaseConnector extends Connector {
         var xpathExpr = xpathFactory.newXPath().compile(xpath);
         var sqlQuery = (String) xpathExpr.evaluate(input, XPathConstants.STRING);
 
-        // Ejecuta la consulta, insert, update, delete, select o lo que sea
         var statement = connection.createStatement();
         boolean hasResultSet = statement.execute(sqlQuery);
 
         if (hasResultSet) {
-            // TODO: Si tiene resultado, lo transforma a XML usando XSLT
+            // Si tiene resultado, lo transforma a XML
+            var resultSet = statement.getResultSet();
+            var resultSetMetaData = resultSet.getMetaData();
+            var columnCount = resultSetMetaData.getColumnCount();
             
-            return null;
+            // Crear el documento XML
+            var docBuilder = javax.xml.parsers.DocumentBuilderFactory.newInstance().newDocumentBuilder();
+            var resultDoc = docBuilder.newDocument();
+            var rootElement = resultDoc.createElement("resultset");
+            resultDoc.appendChild(rootElement);
+            
+            // Iterar sobre las filas del resultado
+            while (resultSet.next()) {
+                var rowElement = resultDoc.createElement("row");
+                rootElement.appendChild(rowElement);
+                
+                // Iterar sobre las columnas
+                for (int i = 1; i <= columnCount; i++) {
+                    var columnName = resultSetMetaData.getColumnName(i);
+                    var columnValue = resultSet.getString(i);
+                    
+                    var columnElement = resultDoc.createElement(columnName);
+                    if (columnValue != null) {
+                        columnElement.setTextContent(columnValue);
+                    }
+                    rowElement.appendChild(columnElement);
+                }
+            }
+            
+            resultSet.close();
+            return resultDoc;
         }
 
         return null;
+    }
+    
+    @Override
+    public void execute() throws Exception {
+        if (port == null) {
+            throw new IllegalStateException("Port no asignado al DataBaseConnector");
+        }
+        
+        if (port instanceof InputPort) {
+            // Para InputPort con DB: ejecutar consulta sin parámetros
+            throw new UnsupportedOperationException("DataBaseConnector no soporta InputPort - use RequestPort");
+        } else if (port instanceof OutputPort) {
+            OutputPort outputPort = (OutputPort) port;
+            Document doc = outputPort.getDocument();
+            if (doc != null) {
+                call(doc);
+            }
+        } else if (port instanceof RequestPort) {
+            RequestPort requestPort = (RequestPort) port;
+            Document request = requestPort.getRequestDocument();
+            if (request != null) {
+                Document response = call(request);
+                requestPort.handleResponse(response);
+            }
+        }
     }
 }
